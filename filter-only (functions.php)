@@ -1,0 +1,63 @@
+function form_shortcode() {
+  ob_start(); // Start output buffering
+  ?>
+  <form id="form" class="search-form-filter" onsubmit="return submitForm()">
+     <div class="search-filter">
+       <input type="hidden" name="page_id" value="<?php echo get_page_by_path('homes-for-sale')->ID; ?>">
+       
+       <input type="text" id="search_query" name="search_query" placeholder="Search listings">
+       <select id="state" name="state" class="select-dropdown">
+         <option value="">All states</option>
+         <?php
+           // Get the states from the taxonomy
+           $states = get_terms(array(
+             'taxonomy' => 'states', // or 'tag' if you are using tags instead of categories
+             'hide_empty' => false,
+           ));
+           
+           // Output the options for the dropdown
+           foreach ($states as $state) {
+             echo '<option value="' . esc_attr($state->slug) . '">' . esc_html($state->name) . '</option>';
+           }
+         ?>
+       </select>
+
+       <select id="homes" >
+         <option value="">All Homes</option>
+         <?php
+          $homes = get_terms(array(
+             'taxonomy' => 'homes', // or 'tag' if you are using tags instead of categories
+             'hide_empty' => false,
+           ));
+           
+           // Output the options for the dropdown
+           foreach ($homes as $home) {
+             echo '<option value="' . esc_attr($home->slug) . '">' . esc_html($home->name) . '</option>';
+           }
+         ?>
+       </select>
+     </div>
+     <button type="submit" id="submit-button">Search Listings</button>
+   </form>
+
+   <script>
+     function submitForm() {
+	  // Get the values of the form elements
+	  var searchQuery = document.getElementById('search_query').value;
+	  var state = document.getElementById('state').value;
+	  var homes = document.getElementById('homes').value;
+
+	  // Build the URL with the search parameters in the query string
+	  var url = '/homes-for-sale?query=' + searchQuery + '&state=' + state + '&homes=' + homes + '#listings';
+
+	  // Navigate to the URL
+	  window.location = url;
+
+	  // Prevent the form from being submitted the usual way
+	  return false;
+	}
+   </script>
+  <?php
+  return ob_get_clean(); // End output buffering and return the form HTML
+}
+add_shortcode('form_shortcode', 'form_shortcode');
