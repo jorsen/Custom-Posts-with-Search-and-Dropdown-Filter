@@ -1,0 +1,322 @@
+//Custom Posts Type
+home-listings
+Taxonomy 
+// state
+// Homes
+
+function search_filter_shortcode() {
+wp_enqueue_script( 'my-script' );
+
+// Localize the script with the ajax object
+wp_localize_script( 'my-script', 'ajax', array(
+  'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+  'security' => wp_create_nonce( 'security_nonce' )
+));
+	
+?>
+
+<!-- Form with submit button -->
+<?php
+  // Get the search query and filters from the GET array
+  $query = isset($_GET['query']) ? $_GET['query'] : '';
+  $state = isset($_GET['state']) ? $_GET['state'] : '';
+  $homes = isset($_GET['homes']) ? $_GET['homes'] : '';	
+?>
+<form id="form" class="search-form-filter" method="post">
+   <div class="search-filter">
+  <input type="text" id="search_query" name="query" placeholder="Search listings" value="<?php echo isset($_GET['query']) ? htmlspecialchars($_GET['query']) : ''; ?>">
+  <input type="hidden" id="state-input" name="state" value="<?php echo isset($_GET['state']) ? htmlspecialchars($_GET['state']) : ''; ?>">
+  <input type="hidden" id="homes-input" name="homes" value="<?php echo isset($_GET['homes']) ? htmlspecialchars($_GET['homes']) : ''; ?>">
+  <select id="state" name="state" class="select-dropdown">
+  <option value="">All states</option>
+  <?php
+    // Get the states from the taxonomy
+    $states = get_terms(array(
+      'taxonomy' => 'states', // or 'tag' if you are using tags instead of categories
+      'hide_empty' => false,
+    ));
+    
+    // Output the options for the dropdown
+    foreach ($states as $state) {
+      // Check if the state is selected
+      $selected = isset($_GET['state']) && $_GET['state'] == $state->slug ? 'selected' : '';
+      echo '<option value="' . esc_attr($state->slug) . '" ' . $selected . '>' . esc_html($state->name) . '</option>';
+    }
+  ?>
+	</select>
+
+	<select id="homes" name="homes">
+	  <option value="">All Homes</option>
+	  <?php
+	   $homes = get_terms(array(
+		  'taxonomy' => 'homes', // or 'tag' if you are using tags instead of categories
+		  'hide_empty' => false,
+		));
+
+		// Output the options for the dropdown
+		foreach ($homes as $home) {
+		  // Check if the home is selected
+		  $selected = isset($_GET['homes']) && $_GET['homes'] == $home->slug ? 'selected' : '';
+		  echo '<option value="' . esc_attr($home->slug) . '" ' . $selected . '>' . esc_html($home->name) . '</option>';
+		}
+	  ?>
+	</select>
+	</div>
+  <button type="submit" id="submit-button">Search Listings</button>
+</form>
+
+<script>     
+  jQuery(function($){
+    window.onload = function(){
+      // Check if either the search query or any of the dropdown menus have a selected option
+      if (document.getElementById("search_query").value.length > 0 || 
+		  document.getElementById("state-input").value.length > 0 ||
+		  document.getElementById("homes-input").value.length > 0 ||
+          document.getElementById("state").selectedIndex > 0 || 
+          document.getElementById("homes").selectedIndex > 0) {
+        // Use the POST method to submit the form
+        document.getElementById("submit-button").click();
+      }
+
+      // Set the state and home variables to the selected options in the dropdown menus
+      state = $('#state').val();
+      home = $('#homes').val();
+    }
+  });
+</script>
+
+<!-- Output div -->
+<div id="output"></div>
+
+<script>
+
+  jQuery(function($){
+      
+    // Define the state and home variables
+    var state = '';
+    var home = '';
+	  
+	 $('#state').on('change', function() {
+	  // Update the value of the hidden state input field when the value of the dropdown changes
+	  $('#state-input').val($(this).val());
+	});
+
+	$('#homes').on('change', function() {
+	  // Update the value of the hidden homes input field when the value of the dropdown changes
+	  $('#homes-input').val($(this).val());
+	});
+
+    // Add an event listener to the state dropdown
+    $('#state').on('change', function() {
+      // Update the state variable when the value of the dropdown changes
+      state = $(this).val();
+    });
+
+    // Add an event listener to the home dropdown
+    $('#homes').on('change', function() {
+      // Update the home variable when the value of the dropdown changes
+      home = $(this).val();
+    });
+
+    $('#submit-button').click(function(event) {
+      event.preventDefault();
+      console.log('Button clicked');
+      var search_query = $('#search_query').val();
+	  var stateInput = $('#state-input').val();
+	  var homesInput = $('#homes-input').val();
+      console.log('Search query:', search_query);
+      var data = {
+        action: 'get_filtered_properties',
+        search_query: search_query,
+        state: stateInput,
+        home: homesInput
+      };
+      
+      console.log(data);
+      jQuery.ajax({
+        type: 'POST',
+        url: '/wp-admin/admin-ajax.php',
+        dataType: 'json',
+        data: data,
+        beforeSend: function(xhr) {
+		  $('#output').html('<div class="spinner"></div>');
+          var filter = $('#form'); // Define the filter variable
+        },
+        success: function(data) {
+            console.log(data);
+		  $('#output').html(''); // clear the previous results
+			if (data.length === 0) {
+    			// If there are no results, display a message
+    		$('#output').html('<p>No results found</p>');
+  			} else {
+		  for (var i = 0; i < data.length; i++) {
+              var cardWrapper = $('<div class="card-wrapper"></div>');
+              if (data[i]['propertystatus'] === null) {
+                cardWrapper.addClass('no-status');
+              }
+              cardWrapper.append(`
+                <a href="${data[i].permalink}">
+                  <div class="img-wrapper">
+                    <img src="${data[i].image_url}">
+                    <div class="property-status-wrapper"><p class="property-status">${data[i].propertystatus ? data[i].propertystatus : ''}</p></div>
+                  </div>
+                  <div class="info-wrapper">
+                    <p class="listing-price">$${data[i].price ? data[i].price : 'N/A'}</p>
+                    <div class="basic-info">
+                      <p class="bed-info">${data[i].bed ? data[i].bed : 'N/A'} Bed</p>
+                      <p class="bath-info">${data[i].bath ? data[i].bath : 'N/A'} Bath</p>
+                      <p class="sqft-info">${data[i].sqft ? data[i].sqft : 'N/A'} Sqft</p>
+                    </div>
+                  </div>
+                </a>
+              `);
+              $('#output').append(cardWrapper);
+            }
+			}
+		},
+        error: function(jqXHR, textStatus, errorThrown) {
+          console.log(errorThrown);
+        }
+      });
+    });
+  });
+</script>
+
+   <?php
+   $args = array(
+      'post_type' => 'home-listings',
+      'posts_per_page' => -1 // Show all posts
+   );
+   $query = new WP_Query( $args );
+
+   if ( $query->have_posts() ) {
+      ?>
+
+      <div class="properties-title">
+         <h3>
+            Matching Homes and Properties
+         </h3>
+      </div>
+      <?php
+      echo '<div class="listing-wrapper">';
+
+      while ( $query->have_posts() ) {
+         $query->the_post();
+         // Output the post content here
+         $feat_image = wp_get_attachment_url( get_post_thumbnail_id($query->ID) );
+         $terms = get_the_terms( $query->post->ID, 'property_types' ); 
+
+         echo'
+         <div class="info"><a href="'.get_permalink( $query->post->ID ).'">
+		<div class="img">
+		<img src='.$feat_image.'>';
+         echo '<div class="contract-wrapper">';
+            if(get_field('in_contract') == '1')
+            {
+               echo '<p class="contract-text">In Contract</p>';
+            }
+         echo '</div></div>';
+
+         echo '<div class="listing-content">';
+         if(get_field('price'))
+            {
+               echo '<p class="apartment-price">$' . get_field('price') . '</p>';
+            } 
+         echo '<div class="apartment-btns">
+					<p class="bed-rooms">';
+					if(get_field('bed'))
+					{
+						echo get_field('bed'). ' Bed';
+					}
+			echo '</p>
+					<p class="bath-rooms">';
+					if(get_field('bath'))
+					{
+						echo get_field('bath'). ' Bath';
+					}
+			echo '</p>
+					<p class="sqft">';
+					if(get_field('sqft'))
+					{
+						echo get_field('sqft'). ' Sqft';
+					}
+		
+			echo '</div></div></a></div>';
+	  }
+   }
+}
+add_shortcode('search_filter', 'search_filter_shortcode');
+
+add_action( 'wp_ajax_get_filtered_properties', 'get_filtered_properties' );
+add_action( 'wp_ajax_nopriv_get_filtered_properties', 'get_filtered_properties' );
+
+function get_filtered_properties() {
+  // Retrieve the search query, state, and home from the AJAX request
+  $search_query = sanitize_text_field($_POST['search_query']);
+  $state = sanitize_text_field($_POST['state']);
+  $home = sanitize_text_field($_POST['home']);
+  console.log('Search query:', $search_query);
+  console.log('State:', $state);
+  console.log('Home:', $home);
+
+  // Query the database for matching posts
+  $args = array(
+    'post_type' => 'home-listings',
+    's' => $search_query,
+    'posts_per_page' => -1 // Show all posts
+  );
+  
+  // Create the tax_query array to filter by state and home taxonomy terms
+  $tax_query = array();
+  
+  if ($state) {
+    $tax_query[] = array(
+      'taxonomy' => 'states', // or 'tags' if you are using tags instead of categories
+      'field' => 'slug',
+      'terms' => $state,
+    );
+  }
+  
+  if ($home) {
+    $tax_query[] = array(
+      'taxonomy' => 'homes', // or 'tags' if you are using tags instead of categories
+      'field' => 'slug',
+      'terms' => $home,
+    );
+  }
+  
+  // Add the tax_query to the WP_Query arguments if at least one taxonomy term was selected
+  if (!empty($tax_query)) {
+    $args['tax_query'] = $tax_query;
+  }
+  
+  $query = new WP_Query($args);
+  $posts = $query->posts;
+
+  // Modify the data object to include the image_url property
+  $data = array();
+  foreach ($posts as $post) {
+    $image_url = get_the_post_thumbnail_url($post->ID);
+    $price = get_field('price', $post->ID);
+    $bed = get_field('bed', $post->ID);
+    $bath = get_field('bath', $post->ID);
+    $sqft = get_field('square_feet', $post->ID);
+    $propertystatus = get_field('property_status', $post->ID);
+    $data[] = array(
+      'image_url' => $image_url,
+      'permalink' => get_permalink($post->ID),
+      'title' => get_the_title($post->ID),
+      'price' => $price,
+      'bed' => $bed,
+      'bath' => $bath,
+      'sqft' => $sqft,
+      'propertystatus' => $propertystatus,
+      'excerpt' => get_the_excerpt($post->ID)
+    );
+  }
+
+  // Return the data object as a JSON response
+  wp_send_json($data);
+}
+add_action('wp_ajax_get_filtered_properties', 'get_filtered_properties');
+add_action('wp_ajax_nopriv_get_filtered_properties', 'get_filtered_properties');
